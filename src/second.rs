@@ -1,8 +1,18 @@
-pub fn sort<T: Ord>(x: &mut [T], up: bool) {
+use super::SortOrder;
+
+pub fn sort<T: Ord>(x: &mut [T], order: &SortOrder) {
+    // * はポインタ？
+    match *order {
+        SortOrder::Ascending => do_sort(x, true),
+        SortOrder::Descending => do_sort(x, false),
+    }
+}
+
+fn do_sort<T: Ord>(x: &mut [T], up: bool) {
     if x.len() > 1 {
         let mid_point = x.len() / 2;
-        sort(&mut x[..mid_point], true);
-        sort(&mut x[mid_point..], false);
+        do_sort(&mut x[..mid_point], true);
+        do_sort(&mut x[mid_point..], false);
         sub_sort(x, up);
     }
 }
@@ -30,11 +40,12 @@ fn compare_and_swap<T: Ord>(x: &mut [T], up: bool) {
 mod tests {
     // 親モジュール(first)のsort関数を使用する
     use super::sort;
+    use crate::SortOrder::*;
 
     #[test]
     fn sort_u32_ascending() {
         let mut x: Vec<u32> = vec![10, 30, 11, 20, 4, 330, 21, 110];
-        sort(&mut x, true);
+        sort(&mut x, &Ascending);
 
         assert_eq!(x, vec![4, 10, 11, 20, 21, 30, 110, 330]);
     }
@@ -42,7 +53,7 @@ mod tests {
     #[test]
     fn sort_u32_descending() {
         let mut x: Vec<u32> = vec![10, 30, 11, 20, 4, 330, 21, 110];
-        sort(&mut x, false);
+        sort(&mut x, &Descending);
 
         assert_eq!(x, vec![330, 110, 30, 21, 20, 11, 10, 4]);
     }
@@ -59,7 +70,7 @@ mod tests {
             "no",
             "GC",
         ];
-        sort(&mut x, true);
+        sort(&mut x, &Ascending);
 
         assert_eq!(
             x,
@@ -88,7 +99,7 @@ mod tests {
             "no",
             "GC",
         ];
-        sort(&mut x, false);
+        sort(&mut x, &Descending);
 
         assert_eq!(
             x,
@@ -105,17 +116,17 @@ mod tests {
         );
     }
 
-    #[test]
-    fn sort_f64() {
-        let mut x = vec![20.0, -30.0, 11.0, 10.0];
-        sort(&mut x, true);
-    }
-    #[test]
-    fn sort_mixed() {
-        // 実行されないがコンパイル時にエラーが検知される
-        if false {
-            let mut x = vec![10, 30, "a", "b"];
-            sort(&mut x, true);
-        }
-    }
+    // #[test]
+    // fn sort_f64() {
+    //     let mut x = vec![20.0, -30.0, 11.0, 10.0];
+    //     sort(&mut x, &Ascending);
+    // }
+    // #[test]
+    // fn sort_mixed() {
+    //     // 実行されないがコンパイル時にエラーが検知される
+    //     if false {
+    //         let mut x = vec![10, 30, "a", "b"];
+    //         sort(&mut x, &Ascending);
+    //     }
+    // }
 }
