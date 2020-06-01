@@ -139,4 +139,60 @@ mod tests {
         let mut x = vec![10, 30, 11];
         assert!(sort(&mut x, &Ascending).is_err());
     }
+
+    struct Student {
+        first_name: String,
+        last_name: String,
+        age: u8,
+    }
+
+    // implementation: 実装
+    impl Student {
+        fn new(first_name: &str, last_name: &str, age: u8) -> Self {
+            // Self: impl対象の型(ここではStudent)の別名
+            Self {
+                first_name: first_name.to_string(),
+                last_name: last_name.to_string(),
+                age,
+            }
+        }
+    }
+
+    #[test]
+    fn sort_student_by_age_ascending() {
+        let taro = Student::new("Taro", "Yamada", 16);
+        let hanako = Student::new("Hanako", "Yamada", 14);
+        let kyoko = Student::new("Kyoko", "Ito", 15);
+        let ryosuke = Student::new("Ryosuke", "Hayashi", 17);
+
+        let mut x = vec![&taro, &hanako, &kyoko, &ryosuke];
+        let expected = vec![&hanako, &kyoko, &taro, &ryosuke];
+
+        // 第2引数はソート順を決めるクロージャ
+        assert_eq!(sort_by(&mut x, &|a, b| a.age.cmp(&b.age)), Ok(()));
+        assert_eq!(x, expected);
+    }
+
+    #[test]
+    fn sort_student_by_age_ascending() {
+        let taro = Student::new("Taro", "Yamada", 16);
+        let hanako = Student::new("Hanako", "Yamada", 14);
+        let kyoko = Student::new("Kyoko", "Ito", 15);
+        let ryosuke = Student::new("Ryosuke", "Hayashi", 17);
+
+        let mut x = vec![&taro, &hanako, &kyoko, &ryosuke];
+        let expected = vec![&hanako, &kyoko, &taro, &ryosuke];
+
+        // 姓asc, 名asc
+        // then_withとは... https://doc.rust-lang.org/std/cmp/enum.Ordering.html
+        assert_eq!(
+            sort_by(&mut x, &|a, b| a
+                .last_name
+                .cmp(&b.last_name)
+                .then_with(|| a.first_name.cmp(&b.first_name))),
+            Ok(())
+        );
+
+        assert_eq!(x, expected);
+    }
 }
