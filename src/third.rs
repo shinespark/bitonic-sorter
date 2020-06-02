@@ -1,12 +1,23 @@
 use super::SortOrder;
+use std::cmp::Ordering;
 
 pub fn sort<T: Ord>(x: &mut [T], order: &SortOrder) -> Result<(), String> {
+    // * はポインタ？
+    match *order {
+        SortOrder::Ascending => sort_by(x, &|a, b| a.cmp(b)),
+        SortOrder::Descending => sort_by(x, &|a, b| b.cmp(a)),
+    }
+}
+
+// F: クロージャ, where F: Fn(&T, &T) -> Orderingで示すトレイト境界を指定
+// 引数にクロージャを取る時には、クロージャは異なる匿名の型として扱われる為、必ずジェネリクスにしなければならない。
+// クロージャは個々に異なる型になるため、もしクロージャを2つ取る関数を定義する場合には、それぞれ別の型パラメータが必要になる
+pub fn sort_by<T, F>(x: &mut [T], comparator: &F) -> Result<(), String>
+where
+    F: Fn(&T, &T) -> Ordering,
+{
     if x.len().is_power_of_two() {
-        // * はポインタ？
-        match *order {
-            SortOrder::Ascending => do_sort(x, true),
-            SortOrder::Descending => do_sort(x, false),
-        }
+        do_sort(x, true, comparator);
         Ok(())
     } else {
         Err(format!(
@@ -16,29 +27,44 @@ pub fn sort<T: Ord>(x: &mut [T], order: &SortOrder) -> Result<(), String> {
     }
 }
 
-fn do_sort<T: Ord>(x: &mut [T], up: bool) {
+fn do_sort<T, F>(x: &mut [T], forward: bool, comparator: &F)
+where
+    F: Fn(&T, &T) -> Ordering,
+{
     if x.len() > 1 {
         let mid_point = x.len() / 2;
-        do_sort(&mut x[..mid_point], true);
-        do_sort(&mut x[mid_point..], false);
-        sub_sort(x, up);
+        do_sort(&mut x[..mid_point], true, comparator);
+        do_sort(&mut x[mid_point..], false, comparator);
+        sub_sort(x, forward, comparator);
     }
 }
 
-fn sub_sort<T: Ord>(x: &mut [T], up: bool) {
+fn sub_sort<T, F>(x: &mut [T], forward: bool, comparator: &F)
+where
+    F: Fn(&T, &T) -> Ordering,
+{
     if x.len() > 1 {
-        compare_and_swap(x, up);
+        compare_and_swap(x, forward, comparator);
         let mid_point = x.len() / 2;
-        sub_sort(&mut x[..mid_point], up);
-        sub_sort(&mut x[mid_point..], up);
+        sub_sort(&mut x[..mid_point], forward, comparator);
+        sub_sort(&mut x[mid_point..], forward, comparator);
     }
 }
 
-fn compare_and_swap<T: Ord>(x: &mut [T], up: bool) {
+fn compare_and_swap<T, F>(x: &mut [T], forward: bool, comparator: &F)
+where
+    F: Fn(&T, &T) -> Ordering,
+{
+    // forward をOrdering値に変換しておく
+    let swap_condition = if forward {
+        Ordering::Greater
+    } else {
+        Ordering::Less
+    };
     let mid_point = x.len() / 2;
     for i in 0..mid_point {
-        if (x[i] > x[mid_point + i]) == up {
-            // 要素を交換する
+        // 比較結果のOrderingのバリアントがswap_conditionと等しいなら要素を交換する
+        if comparator(&x[i], &x[mid_point + i]) == swap_condition {
             x.swap(i, mid_point + i);
         }
     }
@@ -48,6 +74,7 @@ fn compare_and_swap<T: Ord>(x: &mut [T], up: bool) {
 mod tests {
     // 親モジュール(first)のsort関数を使用する
     use super::sort;
+    use crate::third::sort_by;
     use crate::SortOrder::*;
 
     #[test]
@@ -140,6 +167,8 @@ mod tests {
         assert!(sort(&mut x, &Ascending).is_err());
     }
 
+    // DebugトレイトとPartialEqトレイトの実装を自動導出する
+    #[derive(Debug, PartialEq)]
     struct Student {
         first_name: String,
         last_name: String,
@@ -174,14 +203,14 @@ mod tests {
     }
 
     #[test]
-    fn sort_student_by_age_ascending() {
+    fn sort_student_by_name_ascending() {
         let taro = Student::new("Taro", "Yamada", 16);
         let hanako = Student::new("Hanako", "Yamada", 14);
         let kyoko = Student::new("Kyoko", "Ito", 15);
         let ryosuke = Student::new("Ryosuke", "Hayashi", 17);
 
         let mut x = vec![&taro, &hanako, &kyoko, &ryosuke];
-        let expected = vec![&hanako, &kyoko, &taro, &ryosuke];
+        let expected = vec![&ryosuke, &kyoko, &hanako, &taro];
 
         // 姓asc, 名asc
         // then_withとは... https://doc.rust-lang.org/std/cmp/enum.Ordering.html
