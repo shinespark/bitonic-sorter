@@ -1,7 +1,11 @@
 use super::SortOrder;
+use rayon;
 use std::cmp::Ordering;
 
-pub fn sort<T: Ord>(x: &mut [T], order: &SortOrder) -> Result<(), String> {
+// 値は適当らしい
+const PARALLEL_THRESHOLD: usize = 4096;
+
+pub fn sort<T: Ord + Send>(x: &mut [T], order: &SortOrder) -> Result<(), String> {
     // * はポインタ？
     match *order {
         SortOrder::Ascending => sort_by(x, &|a, b| a.cmp(b)),
@@ -9,12 +13,10 @@ pub fn sort<T: Ord>(x: &mut [T], order: &SortOrder) -> Result<(), String> {
     }
 }
 
-// F: クロージャ, where F: Fn(&T, &T) -> Orderingで示すトレイト境界を指定
-// 引数にクロージャを取る時には、クロージャは異なる匿名の型として扱われる為、必ずジェネリクスにしなければならない。
-// クロージャは個々に異なる型になるため、もしクロージャを2つ取る関数を定義する場合には、それぞれ別の型パラメータが必要になる
 pub fn sort_by<T, F>(x: &mut [T], comparator: &F) -> Result<(), String>
 where
-    F: Fn(&T, &T) -> Ordering,
+    T: Send,
+    F: Sync + Fn(&T, &T) -> Ordering,
 {
     if x.len().is_power_of_two() {
         do_sort(x, true, comparator);
@@ -29,12 +31,23 @@ where
 
 fn do_sort<T, F>(x: &mut [T], forward: bool, comparator: &F)
 where
-    F: Fn(&T, &T) -> Ordering,
+    T: Send,
+    F: Sync + Fn(&T, &T) -> Ordering,
 {
     if x.len() > 1 {
         let mid_point = x.len() / 2;
-        do_sort(&mut x[..mid_point], true, comparator);
-        do_sort(&mut x[mid_point..], false, comparator);
+        // xをmid_ponintを境にした、2つの可変の借用に分割し、first, secondに束縛する
+        let (first, second) = x.split_at_mut(mid_point);
+        // 並列処理には一定のオーバーヘッドが必要なので、要素数が多い時に限り並列処理をするようにする
+        if mid_point >= PARALLEL_THRESHOLD {
+            rayon::join(
+                || do_sort(first, true, comparator),
+                || do_sort(second, false, comparator),
+            );
+        } else {
+            do_sort(first, true, comparator);
+            do_sort(second, false, comparator);
+        }
         sub_sort(x, forward, comparator);
     }
 }
